@@ -7,6 +7,14 @@ This repository is the public research snapshot for a two-stage distillation stu
 
 The sequential schedule is deliberate. It avoids optimizing the representation and policy objectives against each other throughout the same run, while keeping the OPD stage directly comparable with the existing baseline.
 
+### Modular EMD-OPD pipeline
+
+![Sequential Bridge-EMD to sampled-token OPD pipeline](figures/emd_opd_pipeline.png)
+
+The diagram separates the frozen Bridge interface, exact layer-level transport, checkpoint handoff, and sampled-token OPD calibration. Stage 1 optimizes only the EMD representation loss; Stage 2 uses only the original OPD objective with a fresh optimizer.
+
+### Frozen Bridge construction
+
 ![Shared Bridge construction](figures/bridge_construction.png)
 
 ## Results available now

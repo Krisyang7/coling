@@ -1,0 +1,67 @@
+{
+  "title": "Sequential EMD-OPD: Representation Alignment before Output Calibration",
+  "subtitle": "The frozen Bridge enables adaptive cross-layer transport; the resulting checkpoint initializes an unchanged sampled-token OPD stage.",
+  "canvas": {"width": 1600, "height": 780, "background": "#FFFFFF"},
+  "scope": "full-method-overview",
+  "schedule": [
+    "stage_1: L = lambda_EMD * L_EMD only",
+    "checkpoint_handoff: merge final EMD checkpoint",
+    "stage_2: L = L_OPD only with a fresh optimizer"
+  ],
+  "modules": [
+    {"id": "trajectory", "label": "MODULE 0 · ON-POLICY TRAJECTORY", "purpose": "student-generated response shared by Teacher and Student"},
+    {"id": "bridge", "label": "MODULE 1 · FROZEN BRIDGE INTERFACE", "purpose": "project heterogeneous hidden states into one shared rank-r space"},
+    {"id": "emd", "label": "MODULE 2 · LAYER-LEVEL EMD ALIGNMENT", "purpose": "cost matrix -> exact balanced OT -> detached transport-weighted loss"},
+    {"id": "handoff", "label": "MODULE 3 · CHECKPOINT HANDOFF", "purpose": "EMD-aligned Student initializes Stage 2"},
+    {"id": "opd", "label": "MODULE 4 · SAMPLED-TOKEN OPD", "purpose": "calibrate token outputs on new student trajectories"}
+  ],
+  "bridge": {
+    "student": "Z^S = {z_i^S}_{i=1}^{28}",
+    "teacher": "sg(Z^T) = {sg(z_j^T)}_{j=1}^{36}",
+    "status": "P_S and P_T frozen",
+    "ranks": [8, 32, 64],
+    "positions": "all valid response tokens"
+  },
+  "emd": {
+    "cost": "C_ij = E_b MSE_{t in R_b}(z_i,t^S, sg(z_j,t^T))",
+    "transport": "F* = argmin_{F>=0} <F,C>, subject to F1=a and F^T1=b",
+    "loss": "L_EMD = lambda_EMD sum_ij sg(F*_ij) C_ij",
+    "lambda_emd": 1.0,
+    "tau": 1.0,
+    "teacher_gradient": false,
+    "transport_gradient": false,
+    "student_gradient": true,
+    "solver": "exact balanced linear program once per global mini-batch"
+  },
+  "opd": {
+    "advantage": "A_t = sg[log p_T(y_t|s_t) - log pi_old(y_t|s_t)]",
+    "ratio": "rho_t = pi_theta(y_t|s_t) / pi_old(y_t|s_t)",
+    "loss": "L_OPD = -E[min(rho_t A_t, clip(rho_t,1-eps,1+eps) A_t)]",
+    "epsilon": 0.2,
+    "representation_loss_enabled": false,
+    "optimizer": "fresh AdamW + cosine schedule"
+  },
+  "palette": {
+    "student": "#007C83",
+    "student_light": "#E7F6F5",
+    "teacher": "#3B5BA5",
+    "teacher_light": "#E9EEFB",
+    "bridge": "#F57C00",
+    "bridge_light": "#FFF3DF",
+    "transport": "#7C3AED",
+    "transport_light": "#F2EBFF",
+    "loss": "#D43C3C",
+    "loss_light": "#FFF0F0",
+    "success": "#009E73",
+    "success_light": "#E9FAF3",
+    "neutral": "#60728C",
+    "neutral_light": "#F5F7FA",
+    "ink": "#10233F"
+  },
+  "rendering": {
+    "editable_svg_text": true,
+    "math_fontset": "stix",
+    "raster_preview_dpi": 180,
+    "outputs": ["svg", "pdf", "png"]
+  }
+}
