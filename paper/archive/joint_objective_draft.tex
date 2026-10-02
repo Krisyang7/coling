@@ -1,0 +1,320 @@
+\documentclass[10pt,twocolumn]{article}
+\usepackage[margin=0.72in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{microtype}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{array}
+\usepackage{caption}
+
+\definecolor{draftblue}{RGB}{25,80,140}
+\hypersetup{colorlinks=true,linkcolor=draftblue,citecolor=draftblue,urlcolor=draftblue}
+\setlength{\columnsep}{0.23in}
+\setlist{nosep,leftmargin=*}
+
+\title{EMD-OPD: Adaptive Cross-Layer Representation Transport\\for On-Policy Language Model Distillation}
+\author{Anonymous Authors}
+\date{}
+
+\newcommand{\stopgrad}{\operatorname{sg}}
+\newcommand{\method}{\textsc{EMD-OPD}}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+On-policy distillation (OPD) transfers a teacher's next-token behavior along student-generated trajectories. On-policy representation distillation (OPRD) instead supplies explicit hidden-state supervision; the cross-architecture OPRD-Bridge baseline studied here uses a fixed correspondence between student and teacher layers. We investigate whether retaining output supervision while allowing cost-dependent cross-layer representation matching improves distillation. Our method, \method{}, preserves the sampled-token OPD objective and adds an Earth Mover's Distance (EMD) loss over intermediate representations. Frozen projections place teacher and student states in a shared low-rank space, and a balanced transport problem assigns supervision across all student--teacher layer pairs. Relative to OPD, the method adds explicit intermediate-state supervision; relative to the representation-only OPRD-Bridge baseline, it retains the output objective and recomputes the layer correspondence from minibatch costs. We specify a controlled mathematical-reasoning comparison against OPD and OPRD-Bridge, with matched fixed-map controls to distinguish the effect of adding representation supervision from the effect of transport. Completed baseline results are reported; proposed-method results remain pending.
+\end{abstract}
+
+\section{Introduction}
+
+On-policy distillation (OPD) transfers teacher knowledge at the states visited by a student during generation. Teacher token probabilities supervise the student's own responses, connecting learning directly to the trajectories encountered at inference. This output-space objective updates the entire student through backpropagation, but supplies no explicit loss for matching intermediate teacher representations.
+
+On-policy representation distillation (OPRD) introduces that intermediate supervision on the same student-generated trajectories \cite{yang2026oprd}. Its connection to Patient Knowledge Distillation (PKD) is the use of hidden-layer matching \cite{sun2019pkd}. In the cross-architecture baseline considered here, OPRD-Bridge uses frozen projections to address different hidden widths and a proportional map to pair student and teacher layers. This baseline optimizes representation alignment alone. Thus output supervision and intermediate supervision are separate design choices; OPRD should not be identified literally with the sum of OPD and PKD.
+
+These methods motivate two questions. First, does explicit representation supervision add value when the OPD objective is retained? Second, should a student layer receive supervision from one predetermined teacher layer, or from a cost-dependent assignment across teacher depth? A fixed map specifies correspondence before observing a training minibatch. With different teacher and student depths, allowing the correspondence to depend on current representations is a plausible alternative, whose value must be tested under matched conditions.
+
+We introduce \method{} to study both questions. The method preserves sampled-token OPD and adds a BERT-EMD-inspired representation objective \cite{li2020bertemd}. Frozen projections map hidden states into one shared low-rank coordinate system. We then compute the full student--teacher layer cost matrix on response tokens and solve a balanced EMD problem once per optimizer minibatch. Its detached transport plan weights the differentiable student representation costs. The result is output supervision together with cost-dependent many-to-many layer matching.
+
+The distinction from OPD is the added intermediate-state objective. The distinction from the current OPRD-Bridge baseline has two parts: the output loss is retained, and online fixed matching is replaced by transport. The bridge also uses shared coordinates so that arbitrary layer-pair costs are defined in a common space. These changes must be separated experimentally; the existing OPRD baseline alone cannot isolate the effect of EMD. The bridge's calibration still uses a proportional-map prior, even though the subsequent transport stage permits every layer pair.
+
+Our contributions are:
+\begin{itemize}
+    \item An on-policy objective that retains sampled-token output supervision and adds explicit hidden-state alignment through layer-level EMD.
+    \item A frozen shared-coordinate bridge supporting a complete $28\times36$ cost matrix between the student and teacher, with gradients restricted to the student side of the representation loss.
+    \item A controlled comparison with OPD and OPRD-Bridge, together with matched objective and layer-mapping controls that distinguish representation supervision from transport.
+\end{itemize}
+
+Completed baselines establish the comparison: macro Avg@8 is 34.44 for OPD, 14.20 for the current OPRD-Bridge configuration, and 2.46 for the undistilled student. These configuration-specific results motivate retaining OPD; they do not establish a general ranking of output and representation distillation. The proposed method's evaluation is pending.
+
+\section{Related Work}
+
+\paragraph{On-policy output supervision.}
+OPD evaluates teacher probabilities on student-generated responses and uses them to improve the student's token predictions. Our comparison uses a sampled-token clipped implementation. \method{} preserves this objective and supplements it with an intermediate-state loss, so the OPD-only control tests whether the additional representation signal is useful.
+
+\paragraph{On-policy representation supervision.}
+OPRD directly supervises hidden representations on student rollouts, while OPRD-Bridge accommodates differences in model width and depth \cite{yang2026oprd}. We compare against the audited representation-only OPRD-Bridge configuration with frozen rank-8 projections and proportional layer matching. \method{} differs in its combined output/representation objective, shared coordinate construction, and online transport-based matching. A fixed-map control using the same shared bridge is therefore needed in addition to the original OPRD-Bridge baseline.
+
+\paragraph{Fixed and cost-dependent layer matching.}
+PKD uses selected intermediate layers for student supervision \cite{sun2019pkd}; BERT-EMD introduces many-to-many matching and cost-aware layer weights through optimal transport \cite{li2020bertemd}. Our method adapts the latter mechanism to response-token states on student-generated autoregressive trajectories. Its distinguishing setting is the combination of this on-policy output objective and a frozen shared cross-width representation space. Neither intermediate supervision nor many-to-many transport alone is introduced here.
+
+\section{Method}
+
+\subsection{Setting}
+
+Let a frozen teacher $p_T$ supervise a trainable student $\pi_\theta$. For a prompt $x$, the student generates a response $y=(y_1,\ldots,y_L)$, and both models process the same prompt--response sequence. We optimize only response positions. The teacher forward pass runs under \texttt{no\_grad}; all teacher hidden states are detached immediately.
+
+The student has $N=28$ transformer blocks with hidden width $d_S=2048$, while the teacher has $M=36$ blocks with width $d_T=4096$. Let $h^S_{i,t}$ and $h^T_{j,t}$ be the hidden states at response position $t$ for student layer $i$ and teacher layer $j$.
+
+\subsection{Sampled-token OPD}
+
+Our output-space baseline is sampled-token OPD with a clipped policy objective. It evaluates the teacher and a frozen old student at the token sampled by the current trajectory. For sequence $b$ and response token $t$,
+\begin{equation}
+A_{b,t}=\stopgrad\!\left[\log p_T(y_{b,t}\mid s_{b,t})-
+\log\pi_{\mathrm{old}}(y_{b,t}\mid s_{b,t})\right].
+\end{equation}
+With probability ratio
+\begin{equation}
+\rho_{b,t}(\theta)=\frac{\pi_\theta(y_{b,t}\mid s_{b,t})}
+{\pi_{\mathrm{old}}(y_{b,t}\mid s_{b,t})},
+\end{equation}
+the implementation uses a clipped surrogate
+\begin{equation}
+\mathcal{L}_{\mathrm{OPD}}=-\frac{1}{|\mathcal{B}|}
+\sum_{b\in\mathcal{B}}\frac{1}{|\mathcal{R}_b|}
+\sum_{t\in\mathcal{R}_b}
+\min\!\left(\rho_{b,t}A_{b,t},
+\operatorname{clip}(\rho_{b,t},1-\epsilon,1+\epsilon)A_{b,t}\right),
+\end{equation}
+where $\epsilon=0.2$ and $\mathcal{R}_b$ contains valid response tokens. One rollout batch of 128 trajectories is split into four optimizer minibatches of 32; the old-policy probabilities remain fixed for those updates. We preserve this code path and its hyperparameters so that the added representation term is the only change to the training objective.
+
+\subsection{From OPD and OPRD to EMD-OPD}
+
+The three methods differ along two principal axes: the explicit supervision signal and the layer correspondence (Table~\ref{tab:method_comparison}). The current OPRD-Bridge baseline aligns normalized projected representations for fixed pairs over the last 2,000 valid response tokens. Its objective has the schematic form
+\begin{equation}
+\mathcal{L}_{\mathrm{OPRD}}=
+\frac{1}{N}\sum_{i=1}^{N}
+\mathbb{E}_{t}\left\|widehat{q}^S_{i,t}
+-\widehat{q}^T_{m(i),t}\right\|_2^2,
+\end{equation}
+where $m$ is a fixed layer map and hats denote normalized projected states in the baseline's pair-specific bridge spaces. It has no OPD term in the configuration evaluated here.
+
+Our objective instead retains $\mathcal{L}_{\mathrm{OPD}}$ and adds a transport-weighted cost over every layer pair. Its shared-space costs use unnormalized projected states and all valid response positions. These additional differences are recorded explicitly: comparisons against the existing OPRD-Bridge measure the complete method, while matched fixed-map+OPD and EMD+OPD controls isolate the layer-matching choice.
+
+\begin{table*}[t]
+\centering
+\small
+\caption{Mechanistic comparison. OPRD-Bridge refers to the representation-only baseline evaluated in this study. All three methods use student-generated trajectories. The proposed method's online transport remains conditioned by its fixed-map bridge-calibration prior.}
+\label{tab:method_comparison}
+\begin{tabular}{@{}llll@{}}
+\toprule
+Property & OPD & OPRD-Bridge (our baseline) & \method{} \\
+\midrule
+Explicit output loss & Sampled-token OPD & None & Same sampled-token OPD \\
+Explicit hidden-state loss & None & Fixed-pair normalized MSE & Transport-weighted MSE \\
+Online layer matching & Not applicable & Fixed proportional map & Minibatch-dependent EMD \\
+Projection coordinates & Not applicable & Pair-specific frozen bridges & Shared teacher coordinates \\
+Representation token window & Not applicable & Last 2,000 response tokens & All valid response tokens \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\subsection{Frozen shared low-rank bridge}
+
+Layer transport requires all pairwise costs $C_{ij}$ to be comparable. Separate coordinate systems for different layer pairs would make these costs arbitrary. We therefore learn one teacher coordinate system from a global teacher mean $\mu_T$ and a rank-$r$ PCA basis $P_T\in\mathbb{R}^{r\times d_T}$ pooled across all teacher layers. Teacher features are
+\begin{equation}
+z^T_{j,t}=P_T(h^T_{j,t}-\mu_T).
+\end{equation}
+For each student layer, a projection $P^S_i\in\mathbb{R}^{r\times d_S}$ maps its hidden states into the same teacher-defined coordinates:
+\begin{equation}
+z^S_{i,t}=P^S_i h^S_{i,t}.
+\end{equation}
+The implementation stores no student mean or bias. It fits each student projection against the proportionally mapped teacher target $m(i)=1+\operatorname{round}(35(i-1)/27)$ for $i=1,\ldots,28$ by minimizing
+\begin{equation}
+\mathcal{L}_{\mathrm{bridge}}=
+\sum_i\left\|P^S_i h^S_i-P_T(h^T_{m(i)}-\mu_T)\right\|_2^2.
+\end{equation}
+The selected projection checkpoint is the epoch with highest cosine similarity on the 200 held-out calibration pairs. Projections are then frozen. Freezing prevents the coordinate system from collapsing to reduce the training loss; gradients still pass through the fixed linear operation into $h^S_{i,t}$ and therefore into the student model. A common basis makes every pairwise distance mathematically well defined, but it does not by itself prove that the coordinate system preserves useful semantics. The online transport is cost dependent, yet its geometry inherits this proportional-map calibration prior.
+
+The versioned local fitter supports ranks $r\in\{8,32\}$; rank 64 is a planned extension whose separate implementation and artifact provenance must be recorded before its result is accepted. Calibration uses 2,000 paired prompts with seed 42 and a 1,800/200 split. Response sequences contribute at most their last 2,000 valid tokens, and each projection trains for 20 epochs with effective batch size 4 and AdamW learning rate $10^{-4}$. The teacher PCA uses 16,384 pooled layer--token rows. Calibration cosine is a diagnostic, not evidence that the downstream objective improves reasoning.
+
+\subsection{Layer cost and optimal transport}
+
+For each sequence in a global optimizer minibatch $\mathcal{B}$ of 32 trajectories, the implementation flattens the bridge dimension and all valid response positions, computes mean-squared distance for every layer pair, and then averages costs equally across sequences:
+\begin{equation}
+C_{ij}=\frac{1}{|\mathcal{B}|}\sum_{b\in\mathcal{B}}
+\frac{1}{|\mathcal{R}_b|r}\sum_{t\in\mathcal{R}_b}
+\left\|z^S_{i,b,t}-\stopgrad(z^T_{j,b,t})\right\|_2^2,
+\end{equation}
+where $\mathcal{R}_b$ contains valid response positions for sequence $b$. This produces a complete $N\times M$ cost matrix instead of a fixed set of $N$ matched pairs. The layer extraction uses the model implementation's 28 and 36 block outputs, including its final post-normalization entry, and aligns identical response-token positions with no prediction shift.
+
+Let $a\in\Delta^N$ and $b\in\Delta^M$ denote student and teacher layer masses. The balanced transport plan solves
+\begin{align}
+F^* = \arg\min_{F\geq 0} &\quad \sum_{i=1}^{N}\sum_{j=1}^{M}F_{ij}C_{ij},\\
+\text{s.t.} &\quad F\mathbf{1}_M=a,\qquad F^\top\mathbf{1}_N=b.
+\end{align}
+We initialize masses uniformly. For each 32-trajectory optimizer minibatch, an exact unregularized linear program solves one plan on the sequence-averaged cost matrix. After the optimizer update, cost attention computes transported unit costs
+\begin{equation}
+u^S_i=\frac{\sum_jF_{ij}C_{ij}}{a_i},\qquad
+u^T_j=\frac{\sum_iF_{ij}C_{ij}}{b_j}.
+\end{equation}
+Writing $\widetilde{u}=\max(u,10^{-12})$, each new marginal is the normalized, $10^{-10}$-floored version of
+\begin{equation}
+\operatorname{softmax}_k\!\left(
+\frac{\sum_\ell\widetilde{u}_\ell}{\tau\widetilde{u}_k}
+\right),\qquad \tau=1.
+\end{equation}
+Thus $\tau$ is the softmax temperature of the marginal update, not an entropic regularizer on the transport objective. Marginal state persists across optimizer minibatches and is checkpointed. To prevent gradients from differentiating through the linear program or teacher-dependent routing decisions, we detach the resulting plan:
+\begin{equation}
+\mathcal{L}_{\mathrm{EMD}}=
+\sum_{i=1}^{N}\sum_{j=1}^{M}\stopgrad(F^*_{ij})C_{ij}.
+\end{equation}
+Only the path from student hidden states through the frozen student projection, layer costs, and weighted sum receives gradients.
+
+\subsection{Combined objective and memory design}
+
+The final objective is
+\begin{equation}
+\mathcal{L}_{\mathrm{EMD\text{-}OPD}}=\mathcal{L}_{\mathrm{OPD}}+
+\lambda_{\mathrm{emd}}\mathcal{L}_{\mathrm{EMD}},
+\qquad \lambda_{\mathrm{emd}}=1.
+\end{equation}
+The implementation computes costs in two passes and stores projected features rather than full-width hidden-state caches. For the 36-layer teacher, a full-width cache would require roughly 144 GiB in the calibrated setup, whereas rank 8, 32, and 64 are expected to require approximately 0.28, 1.13, and 2.25 GiB. These analytical figures characterize only the projected teacher cache; they do not establish total-memory or runtime savings. Rank also changes representation geometry, MSE scale, and the relative gradient strength at fixed $\lambda_{\mathrm{emd}}$, so rank comparisons are configuration comparisons rather than a clean capacity ablation.
+
+\section{Experimental Setup}
+
+\subsection{Controlled protocol}
+
+Table~\ref{tab:protocol} records the protocol shared by all methods. Following the public EOPD experimental setup \cite{jin2026eopd}, we use the reported common settings: Qwen3-8B teacher, Qwen3-1.7B-Base student, batch size 128, four optimizer minibatches of 32 per rollout batch, AdamW with learning rate $3\times10^{-6}$ and cosine decay, three MATH epochs, training temperature 1, top-$p$ 1, and response length 4,096. The local dataset contains 7,500 MATH training examples; with drop-last batching, training uses 58 rollout iterations per epoch and 174 total, corresponding to 696 optimizer updates. The training prompt asks the model to reason step by step and place the final answer in \verb|\boxed{}|.
+
+\begin{table}[t]
+\centering
+\caption{Shared training and evaluation protocol. Parameters not directly specified by EOPD are local controlled choices and are held fixed across compared methods.}
+\label{tab:protocol}
+\small
+\begin{tabular}{@{}ll@{}}
+\toprule
+Item & Value \\
+\midrule
+Teacher & Qwen3-8B, non-thinking \\
+Student & Qwen3-1.7B-Base \\
+Train data & MATH, 7,500 examples \\
+Epochs / rollout steps & 3 / 174 \\
+Global / mini / micro batch & 128 / 32 / 1 \\
+Optimizer / learning rate & AdamW / $3\times10^{-6}$ \\
+Schedule & cosine \\
+Train sampling & $T=1$, top-$p=1$ \\
+Max response length & 4,096 \\
+EMD weight / temperature & $1 / 1$ \\
+Evaluation sampling & $T=1$, top-$p=0.8$ \\
+Samples / max tokens & 8 / 8,192 \\
+Seed & 42 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+EOPD supplies the common experimental-protocol reference; the method comparisons are OPD, OPRD-Bridge, and \method{}. The frozen local evaluation prompt includes an additional brevity/budget instruction, and the exact original EOPD launcher is unavailable. All reported methods use the same local prompt and scoring pipeline. EOPD's entropy-gated forward-KL objective is not part of these experiments.
+
+\subsection{Baselines and evaluation}
+
+We compare four families:
+\begin{enumerate}
+    \item the undistilled Qwen3-1.7B-Base student;
+    \item sampled-token OPD;
+    \item the current pure OPRD-Bridge baseline, with a frozen rank-8 bridge, proportional layer map, and representation coefficient 1;
+    \item \method{} with shared bridge ranks 8, 32, and 64.
+\end{enumerate}
+
+We evaluate MATH500 (500 problems), AMC23 (40), and AIME24 (30). Avg@8 is the percentage of all eight samples that are correct. Pass@8 is the percentage of problems for which at least one sample is correct. Final reporting will include mean response length, truncation rate, wall-clock time, throughput, peak GPU memory, and peak host memory.
+
+\subsection{Integrity checks}
+
+The completed-result audit reconstructed Avg@8 and Pass@8 directly from rollout JSONL flags and found complete sample IDs 0--7 with no missing or duplicate items. The audit did not independently re-grade answers. The OPRD checkpoint contains the expected updated model parameters and matching bridge artifact. A logging bug displayed the representation loss after an extra factor-of-32 division. Inspection found the intended scaling in the backward path and no core fault in the audited path; this was not a complete end-to-end equivalence proof.
+
+\section{Results}
+
+\subsection{Completed baselines}
+
+Table~\ref{tab:main} reports the results that are currently complete. Sampled-token OPD is the strongest baseline on every benchmark and metric. Relative to the undistilled student, current OPRD-Bridge raises macro Avg@8 from 2.46 to 14.20 and macro Pass@8 from 15.51 to 45.09. It nevertheless trails OPD by 20.24 macro Avg@8 points and 12.08 macro Pass@8 points. The central experiment is therefore whether adding adaptive EMD supervision can improve OPD rather than whether representation distillation alone can improve the student.
+
+\begin{table*}[t]
+\centering
+\caption{Controlled mathematical-reasoning results (percent). Each cell is Avg@8 / Pass@8. Pending values will be inserted only after the corresponding rollout files pass the same integrity checks as the completed baselines.}
+\label{tab:main}
+\small
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+Method & MATH500 & AMC23 & AIME24 & Macro \\
+\midrule
+Student & 4.150 / 28.200 & 2.8125 / 15.000 & 0.4167 / 3.3333 & 2.46 / 15.51 \\
+Sampled-token OPD & \textbf{62.175 / 84.000} & \textbf{34.0625 / 67.500} & \textbf{7.0833 / 20.000} & \textbf{34.44 / 57.17} \\
+OPRD-Bridge (rank 8) & 23.525 / 73.600 & 16.5625 / 55.000 & 2.500 / 6.6667 & 14.20 / 45.09 \\
+\midrule
+\method{} (rank 8) & \multicolumn{4}{c}{pending result verification} \\
+\method{} (rank 32) & \multicolumn{4}{c}{pending result verification} \\
+\method{} (rank 64) & \multicolumn{4}{c}{pending result verification} \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+The completed runs also differ in response behavior. Mean generated lengths for student, OPD, and current OPRD are respectively 4,793, 1,763, and 3,280 tokens on MATH500; 4,850, 3,112, and 2,944 on AMC23; and 5,070, 4,414, and 3,321 on AIME24. OPRD's MATH500 truncation rate is 36.98\%, compared with 14.08\% for OPD. This correlation does not establish a cause for the performance gap, but it motivates reporting length and truncation for \method{}.
+
+\subsection{Decisive tests for \method{}}
+
+The prespecified primary endpoint is macro Avg@8 against sampled-token OPD. We report every rank and every task rather than selecting a rank on the final test. Pass@8 tests whether at least one of eight generations succeeds, while Avg@8 tests per-sample reliability. Problem-level bootstrap intervals will preserve the dependence among eight generations from the same problem. Peak memory, calibration cost, training throughput, and wall time quantify the resource tradeoff.
+
+Four matched rows are required before attributing a gain to adaptive transport: OPD-only; shared-bridge fixed-map+OPD; shared-bridge EMD-only; and shared-bridge EMD+OPD. The bridge, rank, response-token mask, cost normalization, loss coefficient, and training budget must match. A uniform or frozen-plan control tests whether cost-dependent routing itself matters. Transport heatmaps and entropy then show whether the solver uses multiple teacher layers or collapses to an approximately fixed diagonal.
+
+\section{Discussion}
+
+\paragraph{Difference from OPD.}
+OPD supervises token choices without explicitly matching intermediate states. \method{} keeps that same token objective and adds transport-weighted hidden-state costs. The OPD-only versus combined comparison directly tests the value of the added signal.
+
+\paragraph{Difference from OPRD-Bridge.}
+The current OPRD-Bridge baseline uses representation-only supervision and fixed proportional layer pairs. \method{} uses both output and representation supervision and recomputes a transport plan across all layer pairs. Shared coordinates, normalization, and the response-token window also differ from the existing baseline. Consequently, gains over that baseline would not alone demonstrate that adaptive matching is responsible; the shared-bridge fixed-map+OPD control supplies the required comparison.
+
+\paragraph{Role of the bridge.}
+The bridge addresses unequal hidden widths and defines one coordinate system for cross-layer distances. It is an enabling part of the transport objective, not a substitute for OPD or the transport solver. Its frozen calibration uses proportional teacher targets, so a learned online transport pattern must be interpreted together with this prior.
+
+\section{Limitations}
+
+The current study uses one training seed and one fixed evaluation seed, so small differences cannot support statistical claims. It covers three mathematical-reasoning benchmarks, one teacher--student pair, and one family of prompts. Although the OPD component follows EOPD's sampled-token clipped objective, we omit EOPD's entropy-gated forward-KL term and differ in launcher provenance and evaluation prompt. Bridge calibration consumes additional data and compute, and low-rank projection may discard representational structure. Calibration cosine measures reconstruction alignment, not downstream reasoning quality. The bridge also inherits a proportional-map prior from calibration. Finally, the completed OPRD comparison is representation-only; it does not isolate the effect of EMD from fixed matching. The planned controlled ablations are necessary for that attribution.
+
+\section{Conclusion}
+
+\method{} studies a specific extension of on-policy distillation: preserve OPD's output supervision while adding hidden-state transfer through cost-dependent layer transport. Compared with OPD, it introduces an explicit intermediate objective. Compared with the representation-only OPRD-Bridge baseline, it retains the token objective and permits online many-to-many layer correspondence in a shared projection space. The completed student, OPD, and OPRD-Bridge results provide the empirical reference points. Pending method evaluations and matched fixed-map controls will test the effectiveness of the combined objective and the contribution of transport.
+
+\section*{Reproducibility Statement}
+
+The study records configuration manifests, checkpoint identities, bridge hashes, state files, and per-example evaluation rollouts. Final \method{} numbers will be included only after checkpoint, sample-count, and aggregation checks. The paper will release the exact prompts, configuration files, and result aggregation script with the final artifact.
+
+\begin{thebibliography}{9}
+
+\bibitem{jin2026eopd}
+Woogyeol Jin, Taywon Min, Yongjin Yang, Dennis Wei, Yi Zhou, Swanand Ravindra Kadhe, Nathalie Baracaldo, and Kimin Lee.
+\newblock Entropy-Aware On-Policy Distillation of Language Models.
+\newblock \emph{arXiv preprint arXiv:2603.07079}, 2026.
+
+\bibitem{yang2026oprd}
+Shenzhi Yang, Guangcheng Zhu, Bowen Song, Haobo Wang, Mingxuan Xia, Xing Zheng, Yingfan Ma, Zhongqi Chen, Weiqiang Wang, Junbo Zhao, and Gang Chen.
+\newblock OPRD: On-Policy Representation Distillation.
+\newblock \emph{arXiv preprint arXiv:2606.06021}, 2026.
+
+\bibitem{li2020bertemd}
+Jianquan Li, Xiaokang Liu, Honghong Zhao, Ruifeng Xu, Min Yang, and Yaohong Jin.
+\newblock BERT-EMD: Many-to-Many Layer Mapping for BERT Compression with Earth Mover's Distance.
+\newblock In \emph{Proceedings of EMNLP}, pages 3009--3018, 2020.
+
+\bibitem{sun2019pkd}
+Siqi Sun, Yu Cheng, Zhe Gan, and Jingjing Liu.
+\newblock Patient Knowledge Distillation for BERT Model Compression.
+\newblock In \emph{Proceedings of EMNLP-IJCNLP}, pages 4323--4332, 2019.
+
+\end{thebibliography}
+
+\end{document}

@@ -1,0 +1,31 @@
+{
+  "title": "Bridge Construction: Shared Low-Rank Representation Space",
+  "canvas": {"width": 1200, "height": 620, "background": "#FFFFFF"},
+  "scope": "bridge-construction-only",
+  "input": "same token sequence x_1:L",
+  "student_branch": {
+    "backbone": {"symbol": "theta_S", "status": "frozen", "color": "#007C83"},
+    "hidden": "h_S in R^{d_S}",
+    "projector": {"symbol": "P_S", "status": "trainable", "method": "learned by alignment"},
+    "projected": "z_S = P_S h_S in R^r"
+  },
+  "teacher_branch": {
+    "backbone": {"symbol": "theta_T", "status": "frozen", "color": "#3B5BA5"},
+    "hidden": "h_T in R^{d_T}",
+    "centering": "h_T - mu_T",
+    "projector": {"symbol": "P_T", "status": "fixed", "method": "PCA on centered Teacher states"},
+    "projected": "z_T = P_T(h_T - mu_T) in R^r"
+  },
+  "shared_space": "R^r",
+  "heterogeneity": "d_S != d_T",
+  "objective": "L_bridge = ||z_S - z_T||_2^2",
+  "gradient_target": "P_S only",
+  "after_fitting": "freeze P_S and P_T",
+  "visio_constraints": {
+    "editable_text": true,
+    "raster_images": false,
+    "foreign_object": false,
+    "text_as_paths": false,
+    "simple_svg_primitives": true
+  }
+}

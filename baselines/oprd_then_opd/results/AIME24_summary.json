@@ -1,0 +1,23 @@
+{
+  "task": "AIME24",
+  "questions": 30,
+  "rollouts": 240,
+  "avg_at_8": 0.0625,
+  "pass_at_8": 0.23333333333333334,
+  "mean_response_tokens": 4576.5125,
+  "protocol": {
+    "model": "artifacts/oprd_then_opd_final_hf",
+    "data": "datasets/AIME24/test.parquet",
+    "seed": 42,
+    "n": 8,
+    "temperature": 1.0,
+    "top_p": 0.8,
+    "max_tokens": 8192,
+    "engine": {
+      "enforce_eager": true,
+      "max_num_seqs": 32,
+      "gpu_memory_utilization": 0.7
+    },
+    "answer_instruction": "Please reason step by step, and put your final answer within \\boxed{}. Keep your reasoning concise, avoid repetition, and complete your response within 8192 tokens."
+  }
+}

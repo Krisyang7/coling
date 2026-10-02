@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+
+# Training products
+**/runs/
+**/checkpoints/
+**/final_hf/
+**/emd_final_hf/
+*.safetensors
+*.jsonl
+*.log
+wandb/
+
+# Data and local caches
+data/
+datasets/
+.cache/
+*.parquet
+*.arrow
+
+# Local configuration and credentials
+.env
+.env.*
+*.pem
+*.key
+known_hosts
+
+# Packages and editor output
+*.tar
+*.tar.gz
+*.zip
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.out
+*.synctex.gz

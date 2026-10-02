@@ -1,0 +1,5 @@
+{
+  "experiments/rank32/artifacts/bridge.pt": "192b99902d01c30852894e6bf5910edf16ef119f2612143a0e227383c07537c7",
+  "experiments/rank64/artifacts/bridge.pt": "231408725e790ef9b206ae40d6c2111ce61878aba261f11029fd2c8f3d209447",
+  "experiments/rank8/artifacts/bridge.pt": "266f815e6262e61d2c84888d61144899ca06bcec100d73fe9b64d6e4c542e573"
+}

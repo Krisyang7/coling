@@ -1,0 +1,13 @@
+# Environment observed for the active GPU runs; CUDA-specific installation may vary.
+torch==2.8.0
+transformers==4.55.4
+vllm==0.10.2
+ray==2.58.0
+numpy==2.2.6
+scipy==1.18.1
+hydra-core==1.3.2
+accelerate==1.4.0
+peft==0.15.2
+math-verify==0.9.0
+latex2sympy2-extended==1.11.0
+pylatexenc==2.10

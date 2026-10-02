@@ -1,0 +1,6 @@
+{
+  "data.train_files": "{root}/artifacts/math_eopd_author_smoke128.parquet",
+  "trainer.total_training_steps": 1,
+  "trainer.total_epochs": 1,
+  "trainer.save_freq": 1
+}

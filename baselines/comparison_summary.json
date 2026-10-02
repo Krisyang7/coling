@@ -1,0 +1,34 @@
+{
+  "metric_scale": "percent",
+  "evaluation": {
+    "samples_per_problem": 8,
+    "temperature": 1.0,
+    "top_p": 0.8,
+    "max_tokens": 8192,
+    "seed": 42
+  },
+  "methods": [
+    {
+      "method": "student_baseline",
+      "MATH500": {"avg_at_8": 4.15, "pass_at_8": 28.2, "mean_response_tokens": 4793},
+      "AMC23": {"avg_at_8": 2.8125, "pass_at_8": 15.0, "mean_response_tokens": 4850},
+      "AIME24": {"avg_at_8": 0.4166667, "pass_at_8": 3.3333333, "mean_response_tokens": 5070},
+      "macro": {"avg_at_8": 2.4597222, "pass_at_8": 15.5111111}
+    },
+    {
+      "method": "sampled_token_opd",
+      "MATH500": {"avg_at_8": 62.175, "pass_at_8": 84.0, "mean_response_tokens": 1763},
+      "AMC23": {"avg_at_8": 34.0625, "pass_at_8": 67.5, "mean_response_tokens": 3112},
+      "AIME24": {"avg_at_8": 7.0833333, "pass_at_8": 20.0, "mean_response_tokens": 4414},
+      "macro": {"avg_at_8": 34.4402778, "pass_at_8": 57.1666667}
+    },
+    {
+      "method": "oprd_bridge_rank8_representation_only",
+      "MATH500": {"avg_at_8": 23.525, "pass_at_8": 73.6, "mean_response_tokens": 3280},
+      "AMC23": {"avg_at_8": 16.5625, "pass_at_8": 55.0, "mean_response_tokens": 2944},
+      "AIME24": {"avg_at_8": 2.5, "pass_at_8": 6.6666667, "mean_response_tokens": 3321},
+      "macro": {"avg_at_8": 14.1958333, "pass_at_8": 45.0888889}
+    }
+  ],
+  "integrity_note": "Aggregate scores were reconstructed from saved rollout flags with complete sample IDs 0-7 and no missing or duplicate items. Answers were not independently re-graded."
+}

@@ -1,0 +1,53 @@
+{
+  "status": "passed",
+  "rank": 64,
+  "gpu": 0,
+  "only_intended_method_change": "bridge rank and its frozen SHA-locked artifact",
+  "eopd_common_protocol": {
+    "batch": 128,
+    "mini_batch": 32,
+    "micro_batch": 1,
+    "epochs_per_stage": 3,
+    "steps_per_stage": 174,
+    "seed": 42,
+    "max_prompt_length": 2048,
+    "max_response_length": 4096,
+    "rollout_temperature": 1.0,
+    "rollout_top_p": 1.0,
+    "rollout_n": 1,
+    "learning_rate": 3e-06
+  },
+  "emd_specific": {
+    "lambda_emd": 1.0,
+    "tau": 1.0
+  },
+  "evaluation_protocol": {
+    "seed": 42,
+    "n": 8,
+    "temperature": 1.0,
+    "top_p": 0.8,
+    "max_tokens": 8192,
+    "rendered_prompt_sha256": {
+      "MATH500": "484d9843f8fd77e9be9fb6321fb603e82e52f453521d5e8efe35b71dacf20ac2",
+      "AMC23": "7d1087119b4e6da0f96246f6f587914b3cee6b5986315fc9c0c1f608cdd5d8b5",
+      "AIME24": "2bfb148cc4ce0cc62c83db6cd7c2b4295807f8989ea5a320dbf6a54cab057717"
+    }
+  },
+  "hashes": {
+    "train_data": "697a0facc51be5c46cdea8849ebc26d848cc6bf775d776b250b6a9a174056534",
+    "smoke_data": "56ef7d6f34514a3868a2de46d540fb0f252f9bbe3b35542ce72e97d58b3b19e6",
+    "evaluation_launcher": "3c9ebb0b3f5ed1a2ccf06ba0fcada84d3b1d997a21eda93b10fccf722c978993",
+    "bridge": "231408725e790ef9b206ae40d6c2111ce61878aba261f11029fd2c8f3d209447"
+  },
+  "bridge_review": {
+    "sha256": "231408725e790ef9b206ae40d6c2111ce61878aba261f11029fd2c8f3d209447",
+    "heldout_cosine": 0.9832298029172716,
+    "report": "experiments/rank64/artifacts/bridge_fit_report.json"
+  },
+  "bridge_frozen": true,
+  "objective_schedule": [
+    "EMD-only:174",
+    "OPD-only:174"
+  ],
+  "created_at": 1790792264.6510334
+}

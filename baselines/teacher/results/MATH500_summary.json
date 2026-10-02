@@ -1,0 +1,23 @@
+{
+  "task": "MATH500",
+  "questions": 500,
+  "rollouts": 4000,
+  "avg_at_8": 0.84125,
+  "pass_at_8": 0.952,
+  "mean_response_tokens": 852.23875,
+  "protocol": {
+    "model": "Qwen/Qwen3-8B",
+    "data": "datasets/MATH-500/test.parquet",
+    "seed": 42,
+    "n": 8,
+    "temperature": 1.0,
+    "top_p": 0.8,
+    "max_tokens": 8192,
+    "engine": {
+      "enforce_eager": true,
+      "max_num_seqs": 32,
+      "gpu_memory_utilization": 0.7
+    },
+    "answer_instruction": "Please reason step by step, and put your final answer within \\boxed{}. Keep your reasoning concise, avoid repetition, and complete your response within 8192 tokens."
+  }
+}

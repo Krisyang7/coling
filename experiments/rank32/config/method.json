@@ -1,0 +1,28 @@
+{
+  "method": "Shared rank-32 Bridge + layer EMD, then sampled-token OPD (sequential)",
+  "bridge_sha256": "192b99902d01c30852894e6bf5910edf16ef119f2612143a0e227383c07537c7",
+  "bridge_kind": "shared_teacher_pca_emd_v1",
+  "bridge_rank": 32,
+  "bridge_calibration": "2000 existing OPRD pairs; same 1800/200 split; shared teacher PCA over all 36 layers; per-student-layer P_S fitted 20 epochs; both frozen during distillation",
+  "deviation": "Compressed-space EMD changes the objective; not an exact BERT-EMD or EOPD reproduction",
+  "lambda_emd": 1.0,
+  "tau": 1.0,
+  "status": "bridge_calibrated_sha_locked_for_sequential_sweep",
+  "projector": "frozen per-student-layer Linear(2048,32,bias=False) into one shared teacher PCA coordinate system",
+  "layer_states": "HF hidden_states[1:] including final post-RMSNorm entry",
+  "response_positions": "all valid response token positions, no prediction shift",
+  "transport": "one exact unregularized balanced LP per global optimizer minibatch",
+  "mass_floor": 1e-10,
+  "cost_floor": 1e-12,
+  "marginal_tolerance": 1e-08,
+  "optimizer": "student AdamW unchanged; frozen bridge has no gradients or optimizer moments; empty-state optimizer retained for checkpoint/update compatibility",
+  "hardware_scope": "single GPU only; two-pass global minibatch cost then fixed-flow differentiable recomputation",
+  "projector_initialization": "separately calibrated shared-coordinate bridge; frozen and SHA-256 locked",
+  "lp_mass_scale": 1000000000000.0,
+  "relative_marginal_tolerance": 1e-05,
+  "objective_schedule": [
+    "stage_1: lambda_emd * hidden_emd_loss only",
+    "stage_2: sampled_token_opd_loss only"
+  ],
+  "stage_2_optimizer": "fresh AdamW with fresh cosine schedule"
+}
