@@ -1,0 +1,48 @@
+# Python caches and local environments
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+third_party/
+
+# Local datasets, generated outputs, logs, and experiment trackers
+data/
+datasets/
+results/
+outputs/
+logs/
+wandb/
+checkpoints/
+artifacts/
+models/
+*.csv
+*.jsonl
+*.parquet
+*.log
+
+# Model weights and checkpoints
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.bin
+
+# Paper and generated figure material do not belong in this repository
+paper/
+manuscript/
+figures/
+tables/
+*.tex
+*.bib
+*.pdf
+*.png
+*.jpg
+*.jpeg
+*.svg
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

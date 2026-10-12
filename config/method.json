@@ -1,0 +1,35 @@
+{
+  "method": "centered_affine_uniform_ot_then_sampled_token_opd",
+  "bridge_kind": "shared_teacher_pca_centered_affine_emd_v1",
+  "bridge_rank": 8,
+  "bridge_sha256": "REPLACE_WITH_LOCAL_BRIDGE_SHA256",
+  "lambda_emd": null,
+  "marginals": "uniform_fixed",
+  "transport": "exact_unregularized_balanced_lp",
+  "mass_quantization_scale": 1000000000000,
+  "response_positions": "last_k",
+  "response_last_k": 2000,
+  "normalization": "per_token_l2",
+  "representation_epsilon": 1e-12,
+  "solver": {
+    "primal_feasibility_tolerance": null,
+    "dual_feasibility_tolerance": null,
+    "absolute_residual_tolerance": null,
+    "relative_residual_tolerance": null,
+    "negative_flow_tolerance": null,
+    "objective_scale_floor": null,
+    "minimum_scaled_mass": null,
+    "maximum_solver_scale": null
+  },
+  "student_layers": 28,
+  "teacher_layers": 36,
+  "calibration_fit_examples": 1800,
+  "calibration_validation_examples": 200,
+  "calibration_positions_per_example": 64,
+  "training_problems": 7500,
+  "objective_schedule": [
+    "stage_2: hidden_emd_loss_only",
+    "stage_3: sampled_token_opd_loss_only"
+  ],
+  "variant": "centered_affine_shared_emd_uniform_last_k_2000"
+}
